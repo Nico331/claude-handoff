@@ -1,0 +1,27 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/hook.py\" session-start 2>/dev/null || python \"${CLAUDE_PLUGIN_ROOT}/scripts/hook.py\" session-start",
+            "timeout": 10,
+            "statusMessage": "Loading handoff"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/hook.py\" prompt 2>/dev/null || python \"${CLAUDE_PLUGIN_ROOT}/scripts/hook.py\" prompt",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

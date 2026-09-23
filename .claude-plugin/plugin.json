@@ -1,0 +1,14 @@
+{
+  "name": "claude-handoff",
+  "displayName": "Claude Handoff",
+  "version": "0.1.0",
+  "description": "Three-level, ranked, lock-protected project memory (\"handoff\") for Claude Code: a small bootstrap read at every session instead of one big notes file.",
+  "author": {
+    "name": "Nico331",
+    "url": "https://github.com/Nico331"
+  },
+  "homepage": "https://github.com/Nico331/claude-handoff",
+  "repository": "https://github.com/Nico331/claude-handoff",
+  "license": "MIT",
+  "keywords": ["memory", "handoff", "context", "multi-agent", "locks", "documentation"]
+}

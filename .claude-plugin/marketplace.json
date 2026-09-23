@@ -1,0 +1,22 @@
+{
+  "name": "claude-handoff",
+  "description": "Single-plugin marketplace for claude-handoff.",
+  "owner": {
+    "name": "Nico331",
+    "url": "https://github.com/Nico331"
+  },
+  "plugins": [
+    {
+      "name": "claude-handoff",
+      "source": "./",
+      "description": "Three-level, ranked, lock-protected project memory (\"handoff\") for Claude Code.",
+      "version": "0.1.0",
+      "author": { "name": "Nico331" },
+      "homepage": "https://github.com/Nico331/claude-handoff",
+      "repository": "https://github.com/Nico331/claude-handoff",
+      "license": "MIT",
+      "keywords": ["memory", "handoff", "context", "multi-agent"],
+      "category": "productivity"
+    }
+  ]
+}
