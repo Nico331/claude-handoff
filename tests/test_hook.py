@@ -101,6 +101,39 @@ def test_italian_texts(project: Path, capsys: pytest.CaptureFixture[str]) -> Non
     assert "mai due lock insieme" in prompt and "mai segreti" in prompt
 
 
+@pytest.mark.parametrize(("language", "start_marker", "prompt_marker"), [
+    (None, "ALL entries with rank", "never hold two locks"),
+    ("en", "ALL entries with rank", "never hold two locks"),
+    ("it", "TUTTE le voci con rank", "mai due lock insieme"),
+    ("de", "ALL entries with rank", "never hold two locks"),
+    ("pt-br", "ALL entries with rank", "never hold two locks"),
+    ("it-ch", "TUTTE le voci con rank", "mai due lock insieme"),
+])
+def test_texts_state_the_content_language(
+        project: Path, capsys: pytest.CaptureFixture[str], language: str | None,
+        start_marker: str, prompt_marker: str) -> None:
+    root = project / ".claude/handoff"
+    if language is not None:
+        write(root / "handoff.json", json.dumps({"language": language}))
+    shown = language or "en"
+    english = start_marker.startswith("ALL")
+    sentence = (f"Write handoff content (entries, summaries, index text) in language "
+                f"'{shown}'." if english else
+                f"Scrivere il contenuto dell'handoff (voci, sommari, testo degli indici) "
+                f"in lingua '{shown}'.")
+    start = context(run(project, "session-start", capsys), "SessionStart")
+    assert start_marker in start and sentence in start
+    prompt = context(run(project, "prompt", capsys), "UserPromptSubmit")
+    assert prompt_marker in prompt and sentence in prompt
+
+
+def test_hook_texts_fallback() -> None:
+    assert hook.hook_texts("it") is hook.TEXTS["it"]
+    assert hook.hook_texts("it-ch") is hook.TEXTS["it"]
+    assert hook.hook_texts("de") is hook.TEXTS["en"]
+    assert hook.hook_texts("de-it") is hook.TEXTS["en"]
+
+
 def test_inject_summaries_off_and_bootstrap_rank(
         project: Path, capsys: pytest.CaptureFixture[str]) -> None:
     root = project / ".claude/handoff"

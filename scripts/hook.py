@@ -10,6 +10,11 @@ Called by ``hooks/hooks.json`` at two moments:
 - ``prompt`` (UserPromptSubmit): reminds, at every prompt, to decide whether the
   handoff must be updated, with the lock protocol.
 
+Both texts state the language the handoff content is written in (``language`` of
+``handoff.json``). The texts themselves exist in English and Italian; any other
+language gets the English text (a regional tag such as ``it-ch`` first tries its
+base language).
+
 Behaviour in a project without a handoff: at session start a single hint line
 suggests ``/claude-handoff:init``; at each prompt nothing is printed.
 
@@ -50,7 +55,8 @@ TEXTS = {
             "with their summary), then the rank <= 2 entries of the topics today's task "
             "touches; the rest on demand, starting from the summaries in the indexes. "
             "Tool: {tool} <command> (list --max-rank {rank}, check, lock, reindex, "
-            "unlock, status)."),
+            "unlock, status). Write handoff content (entries, summaries, index text) "
+            "in language '{language}'."),
         "listed": "Entries with rank <= {rank}:\n{items}",
         "none": "  (no entry with rank <= {rank} found)",
         "more": "  ... and {count} more: run `{tool} list --max-rank {rank}`",
@@ -62,7 +68,8 @@ TEXTS = {
             "protocol: {tool} lock <folder> --owner <name> -> edit -> reindex -> unlock "
             "-> same on the parent, up to the root; never hold two locks; then check. "
             "One fact in one place; closed items go to rank 5 or are deleted, never "
-            "struck through; never secrets."),
+            "struck through; never secrets. Write handoff content (entries, summaries, "
+            "index text) in language '{language}'."),
         "absent": ("claude-handoff: no handoff at {root}/. To create one, run "
                    "/claude-handoff:init."),
     },
@@ -74,7 +81,8 @@ TEXTS = {
             "{rank} (elencate sotto con il sommario), poi le voci rank <= 2 degli "
             "argomenti del giorno; il resto su bisogno, partendo dai sommari negli "
             "indici. Strumento: {tool} <comando> (list --max-rank {rank}, check, lock, "
-            "reindex, unlock, status)."),
+            "reindex, unlock, status). Scrivere il contenuto dell'handoff (voci, "
+            "sommari, testo degli indici) in lingua '{language}'."),
         "listed": "Voci con rank <= {rank}:\n{items}",
         "none": "  (nessuna voce con rank <= {rank} trovata)",
         "more": "  ... e altre {count}: `{tool} list --max-rank {rank}`",
@@ -86,12 +94,29 @@ TEXTS = {
             "coda, con il protocollo dei lock: {tool} lock <cartella> --owner <nome> -> "
             "modifica -> reindex -> unlock -> genitore, fino alla radice; mai due lock "
             "insieme; poi check. Un fatto in un solo posto; voci chiuse a rank 5 o "
-            "cancellate, mai barrate; mai segreti nell'handoff."),
+            "cancellate, mai barrate; mai segreti nell'handoff. Scrivere il contenuto "
+            "dell'handoff (voci, sommari, testo degli indici) in lingua '{language}'."),
         "absent": ("claude-handoff: nessun handoff in {root}/. Per crearne uno: "
                    "/claude-handoff:init."),
     },
 }
-"""Injected texts per language; `{root}`, `{tool}`, `{rank}` are filled in."""
+"""Injected texts per language; `{root}`, `{tool}`, `{rank}`, `{language}` are filled in."""
+
+
+def hook_texts(language: str) -> Dict[str, str]:
+    """Hook texts for a content language.
+
+    Args:
+        language: the configured content language, e.g. `it`, `it-ch`, `de`.
+
+    Returns:
+        The texts of `language` if translated, else those of its base tag (`it` for
+        `it-ch`), else the English ones.
+    """
+    for candidate in (language, language.split("-")[0]):
+        if candidate in TEXTS:
+            return TEXTS[candidate]
+    return TEXTS["en"]
 
 
 def read_frontmatter(path: Path) -> Dict[str, str]:
@@ -177,13 +202,13 @@ def build_message(event: str, project: Path, environ: Dict[str, str]) -> Optiona
         return TEXTS["en"]["absent"].format(root=shown) if event == "session-start" else None
     problems = hf_config.config_problems(root)
     cfg = hf_config.DEFAULT_CONFIG if problems else hf_config.load_config(root)
-    texts = TEXTS.get(cfg.language, TEXTS["en"])
+    texts = hook_texts(cfg.language)
     python = Path(sys.executable).as_posix() if sys.executable else "python3"
     tool = f'"{python}" "{TOOL.as_posix()}" --root "{shown}"'
     rank = cfg.bootstrap_max_rank
     if event != "session-start":
-        return texts["prompt"].format(root=shown, tool=tool)
-    parts = [texts["start"].format(root=shown, tool=tool, rank=rank)]
+        return texts["prompt"].format(root=shown, tool=tool, language=cfg.language)
+    parts = [texts["start"].format(root=shown, tool=tool, rank=rank, language=cfg.language)]
     if problems:
         parts.append(f"(handoff.json ignored: {'; '.join(problems)})")
     if cfg.inject_summaries:

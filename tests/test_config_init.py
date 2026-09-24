@@ -49,7 +49,7 @@ def test_config_values_are_read(tmp_path: Path) -> None:
     ({"max_entry_lines": True}, "max_entry_lines must be a positive integer"),
     ({"lock_ttl_seconds": "900"}, "lock_ttl_seconds must be a positive integer"),
     ({"bootstrap_max_rank": 6}, "bootstrap_max_rank must be an integer from 1 to 5"),
-    ({"language": "fr"}, "language must be one of en, it"),
+    ({"language": "EN"}, "language must be a lowercase language tag"),
     ({"inject_summaries": "yes"}, "inject_summaries must be true or false"),
     ({"default_areas": []}, "default_areas must be a non-empty list"),
     ({"default_areas": ["a", 3]}, "default_areas must be a non-empty list"),
@@ -69,9 +69,9 @@ def test_load_config_invalid_raises_code_2(tmp_path: Path) -> None:
 
 def test_cli_invalid_config_is_a_usage_error(tmp_path: Path) -> None:
     root = tmp_path / "h"
-    write(root / "handoff.json", '{"language": "xx"}')
+    write(root / "handoff.json", '{"language": "english"}')
     result = run_cli(root, "list")
-    assert result.returncode == 2 and "language must be one of" in result.stderr
+    assert result.returncode == 2 and "lowercase language tag" in result.stderr
 
 
 def test_config_json_roundtrip() -> None:

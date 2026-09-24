@@ -5,7 +5,7 @@ Usage, from the project directory:
 
     python3 <plugin>/scripts/handoff.py [--root DIR] <command> [options]
 
-Commands: init, lock, unlock, status, reindex, check, list, stats. Python 3.10+,
+Commands: init, lock, unlock, status, reindex, check, list, stats, language. Python 3.10+,
 standard library only.
 
 Exit codes: 0 success; 1 content errors or failed `check`; 2 usage error;
@@ -22,6 +22,7 @@ if sys.version_info < (3, 10):  # pragma: no cover - exercised only on old inter
 
 import argparse  # noqa: E402
 from collections.abc import Callable  # noqa: E402
+from dataclasses import replace  # noqa: E402
 from pathlib import Path  # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -29,9 +30,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import hf_check  # noqa: E402
 import hf_index  # noqa: E402
 import hf_init  # noqa: E402
+import hf_language  # noqa: E402
 import hf_lock  # noqa: E402
 import hf_report  # noqa: E402
-from hf_config import Config, load_config, resolve_root  # noqa: E402
+from hf_config import (CONFIG_NAME, DEFAULT_LANGUAGE, Config,  # noqa: E402
+                       language_problem, load_config, resolve_root)
 from hf_tree import INDEX_NAME, HandoffError, resolve_folder  # noqa: E402
 
 EXIT_CODES = "exit: 0 ok, 1 content errors/check failed, 2 usage error, " \
@@ -66,6 +69,15 @@ def cmd_init(args: argparse.Namespace) -> int:
     """`init`: scaffold root, areas and handoff.json without overwriting anything."""
     root, cfg = _context(args)
     areas = [a.strip() for a in args.areas.split(",") if a.strip()] if args.areas else None
+    if args.language is not None:
+        problem = language_problem(args.language)
+        if problem is not None:
+            raise HandoffError(problem, 2)
+        if (root / CONFIG_NAME).exists():
+            _out(f"{root / CONFIG_NAME} exists: --language ignored "
+                 f"(use the language command to change it)")
+        else:
+            cfg = replace(cfg, language=args.language)
     result = hf_init.init(root, areas, args.owner, cfg, seed=not args.no_seed)
     for path in result.created:
         _out(f"created: {path}")
@@ -171,6 +183,22 @@ def cmd_stats(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_language(args: argparse.Namespace) -> int:
+    """`language`: print the content language, or set it in handoff.json."""
+    root, _ = _existing_root(args)
+    if args.code is None:
+        language, explicit = hf_language.current_language(root)
+        _out(f"language: {language}" + ("" if explicit else " (default)"))
+        return 0
+    previous, changed = hf_language.set_language(root, args.code)
+    if not changed:
+        _out(f"language: {args.code} (unchanged)")
+    else:
+        was = previous if previous is not None else f"{DEFAULT_LANGUAGE}, the default"
+        _out(f"language: {args.code} (was {was})")
+    return 0
+
+
 def _positive(value: str) -> int:
     """argparse type: integer > 0."""
     try:
@@ -183,7 +211,7 @@ def _positive(value: str) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    """Command-line parser with its eight sub-commands."""
+    """Command-line parser with its nine sub-commands."""
     parser = argparse.ArgumentParser(
         prog="handoff.py",
         description="Three-level project handoff: init, locks, indexes, checks, stats.",
@@ -207,6 +235,9 @@ def build_parser() -> argparse.ArgumentParser:
     init.add_argument("--owner", default="init", help="lock owner for the final reindex")
     init.add_argument("--no-seed", action="store_true",
                       help="do not create the seed topic explaining the handoff")
+    init.add_argument("--language", metavar="CODE",
+                      help="content language written into a new handoff.json "
+                           "(default: en; ignored if handoff.json exists)")
 
     lock = add("lock", cmd_lock, "take the lock of a folder (relative to the root)")
     lock.add_argument("folder", metavar="<folder>")
@@ -246,6 +277,12 @@ def build_parser() -> argparse.ArgumentParser:
     stats.add_argument("--legacy", type=Path,
                        help="old flat handoff folder to compare with "
                             "(default: 'legacy' of handoff.json, if set)")
+
+    language = add("language", cmd_language,
+                   "show the language the handoff content is written in, or set it")
+    language.add_argument("code", metavar="CODE", nargs="?",
+                          help="new language tag, e.g. en, it, de, pt-br "
+                               "(omit to print the current one)")
     return parser
 
 

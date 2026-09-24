@@ -4,6 +4,27 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.2.0] - 2026-09-24
+
+### Added
+
+- Command `language [CODE]` of `scripts/handoff.py`: prints the language the
+  handoff content is written in, or writes it into `handoff.json` keeping every
+  other key and its order (atomic write; the file is created if absent).
+- Slash command `/claude-handoff:language [code]`; existing entries are
+  translated only on request, with the lock protocol.
+- `init --language CODE` writes the language into a new `handoff.json`.
+
+### Changed
+
+- `language` in `handoff.json` now means the language of the handoff content
+  (entries, titles, summaries, hand-written index text), default `en`. Any
+  lowercase language tag is accepted (`en`, `it`, `de`, `pt-br`); invalid tags
+  are rejected with a clear message.
+- Both hook texts state the content language. The hook text stays available in
+  English and Italian; other languages get English, and a regional tag falls
+  back to its base language (`it-ch` uses Italian).
+
 ## [0.1.0] - 2026-09-23
 
 ### Added

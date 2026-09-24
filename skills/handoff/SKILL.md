@@ -114,6 +114,12 @@ handoff.py check
 
 **Content rules:**
 
+- **Write in the handoff's language**: entries, titles, summaries and the
+  hand-written text of indexes use the `language` of `<root>/handoff.json`
+  (default `en`; `handoff.py language` prints it, and the hooks repeat it), even
+  when the conversation is in another language. File and folder names stay
+  kebab-case ASCII. When the language changes, existing entries are translated
+  only if the user asks, with the lock protocol.
 - **One fact in one place.** If it is already in a README, an ADR, the code or
   another entry, link to it instead of copying.
 - **Never secrets.** Record where a credential lives and its state, never its value.
@@ -128,7 +134,7 @@ handoff.py check
 
 | command | purpose |
 |---|---|
-| `init [--areas a,b] [--no-seed]` | create root, areas, `handoff.json`; idempotent, never overwrites |
+| `init [--areas a,b] [--no-seed] [--language CODE]` | create root, areas, `handoff.json`; idempotent, never overwrites |
 | `lock <folder> --owner N [--ttl S] [--steal-stale]` | take a folder lock |
 | `unlock <folder> --owner N [--force]` | release it |
 | `status` | locks present, expired ones marked |
@@ -136,6 +142,7 @@ handoff.py check
 | `check [--warn-only]` | validate everything |
 | `list [--max-rank N] [--area A]` | entries by rank |
 | `stats [--legacy DIR]` | bytes per level, bootstrap cost, comparison with an old handoff |
+| `language [CODE]` | print the content language, or set it in `handoff.json` |
 
 Exit codes: 0 ok, 1 content error or failed check, 2 usage error, 3 folder locked,
 4 lock owned by someone else.

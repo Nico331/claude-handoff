@@ -147,6 +147,8 @@ removed, a procedure discovered, an open item opened or closed, a number changed
   link to it instead.
 - **Never secrets**: say where a credential lives and its state, never its value.
 - A closed item is **not struck through**: lower it to rank 5 or delete it.
+- Write in the language set in `handoff.json` (`handoff.py language` prints it),
+  whatever the language of the conversation.
 """,
         "entry-format.md": _frontmatter(
             "Shape of folders, entries and indexes",

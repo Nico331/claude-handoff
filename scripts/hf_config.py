@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from dataclasses import dataclass, field, fields, replace
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -38,8 +39,14 @@ ENV_ROOT = "CLAUDE_HANDOFF_ROOT"
 DEFAULT_AREAS = ("rules", "state", "decisions", "procedures", "open", "history")
 """Area names `init` creates when neither `--areas` nor the config says otherwise."""
 
-LANGUAGES = ("en", "it")
-"""Languages supported for the text the hooks inject."""
+DEFAULT_LANGUAGE = "en"
+"""Language of the handoff content when `handoff.json` does not set one."""
+
+HOOK_LANGUAGES = ("en", "it")
+"""Languages the hook text is translated into; any other language gets English."""
+
+LANGUAGE_TAG = re.compile(r"[a-z]{2,3}(?:-[a-z0-9]{2,8})*")
+"""Accepted language tags (full match): lowercase BCP 47-like, e.g. `en`, `pt-br`."""
 
 
 class HandoffError(Exception):
@@ -71,7 +78,9 @@ class Config:
         max_summary: most characters in a `summary`.
         bootstrap_max_rank: entries with rank <= this are read at every session start.
         lock_ttl_seconds: default lifetime of a lock.
-        language: language of the text injected by the hooks (`en` or `it`).
+        language: language the handoff content is written in (entries, summaries,
+            hand-written index text); also selects the hook text when a translation
+            exists (see `HOOK_LANGUAGES`).
         inject_summaries: whether the SessionStart hook lists the bootstrap entries.
         default_areas: areas `init` creates by default.
         legacy: old flat handoff for `stats` to compare with, relative to the root.
@@ -83,7 +92,7 @@ class Config:
     max_summary: int = 160
     bootstrap_max_rank: int = 1
     lock_ttl_seconds: int = 900
-    language: str = "en"
+    language: str = DEFAULT_LANGUAGE
     inject_summaries: bool = True
     default_areas: Tuple[str, ...] = field(default=DEFAULT_AREAS)
     legacy: Optional[str] = None
@@ -99,6 +108,22 @@ _POSITIVE_INTS = ("max_topics", "max_entry_files", "max_entry_lines", "max_summa
 def _is_int(value: Any) -> bool:
     """True for a JSON integer (booleans excluded)."""
     return isinstance(value, int) and not isinstance(value, bool)
+
+
+def language_problem(value: Any) -> Optional[str]:
+    """Why `value` is not an acceptable language tag.
+
+    Args:
+        value: candidate tag, as read from JSON or the command line.
+
+    Returns:
+        `None` when it is a lowercase tag such as `en`, `it`, `de` or `pt-br`,
+        otherwise a problem message for the user.
+    """
+    if isinstance(value, str) and LANGUAGE_TAG.fullmatch(value):
+        return None
+    return (f"language must be a lowercase language tag such as en, it, de or pt-br "
+            f"(got {value!r})")
 
 
 def validate(data: Any) -> Tuple[Optional[Config], List[str]]:
@@ -128,10 +153,11 @@ def validate(data: Any) -> Tuple[Optional[Config], List[str]]:
         else:
             problems.append("bootstrap_max_rank must be an integer from 1 to 5")
     if "language" in data:
-        if data["language"] in LANGUAGES:
+        problem = language_problem(data["language"])
+        if problem is None:
             values["language"] = data["language"]
         else:
-            problems.append(f"language must be one of {', '.join(LANGUAGES)}")
+            problems.append(problem)
     if "inject_summaries" in data:
         if isinstance(data["inject_summaries"], bool):
             values["inject_summaries"] = data["inject_summaries"]

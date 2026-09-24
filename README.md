@@ -98,7 +98,9 @@ In your project:
 
 This creates `.claude/handoff/` with the default areas (`rules`, `state`,
 `decisions`, `procedures`, `open`, `history`), a `handoff.json`, and a seed topic
-`rules/handoff/` explaining the protocol. Then just work: at every session start
+`rules/handoff/` explaining the protocol. The handoff is written in English by
+default; for another language pass it at creation (`handoff.py init --language
+it`) or set it later with `/claude-handoff:language it`. Then just work: at every session start
 the hook injects the reading protocol and the rank-1 summaries, and at every
 prompt it reminds Claude to record what changed. The `handoff` skill holds the
 full rules and is loaded when Claude needs to write.
@@ -124,6 +126,7 @@ Slash commands (namespaced by the plugin):
 | `/claude-handoff:init [areas]` | scaffold the handoff; idempotent, never overwrites |
 | `/claude-handoff:check` | validate and propose fixes |
 | `/claude-handoff:migrate <path>` | multi-agent migration of existing notes, with evaluation |
+| `/claude-handoff:language [code]` | show or set the language the handoff is written in; existing entries are translated only on request |
 | `/claude-handoff:handoff` | the skill itself (also loaded automatically) |
 
 The tool behind them, usable directly (`python` instead of `python3` on Windows):
@@ -136,7 +139,7 @@ The session-start hook prints the exact command line for your machine.
 
 | command | what it does |
 |---|---|
-| `init [--areas a,b] [--owner N] [--no-seed]` | create root, areas and `handoff.json`; only missing files; reindexes the folders it touched and their ancestors |
+| `init [--areas a,b] [--owner N] [--no-seed] [--language CODE]` | create root, areas and `handoff.json` (with `language` = CODE when the file is new); only missing files; reindexes the folders it touched and their ancestors |
 | `lock <folder> --owner N [--ttl S] [--steal-stale]` | take the folder lock atomically; `--steal-stale` breaks an expired lock and logs it |
 | `unlock <folder> --owner N [--force]` | release your lock; `--force` releases someone else's and logs it |
 | `status` | locks present, with age; expired ones marked `EXPIRED` |
@@ -145,6 +148,7 @@ The session-start hook prints the exact command line for your machine.
 | `check [--warn-only]` | validate levels, limits, names, frontmatter, line counts, tables, folder ranks, relative links, expired locks, `handoff.json` |
 | `list [--max-rank N] [--area A]` | entries by rank; `list --max-rank 1` is the bootstrap list |
 | `stats [--legacy DIR]` | bytes and lines per level, bootstrap cost in bytes and estimated tokens, comparison with an old handoff |
+| `language [CODE]` | print the content language (`en` by default), or write `language` into `handoff.json` keeping the other keys; atomic write |
 
 `<folder>` is relative to the root: `.` is the root, `state/cluster` a topic.
 
@@ -154,7 +158,7 @@ The session-start hook prints the exact command line for your machine.
 |---|---|
 | 0 | success (also `check --warn-only` with errors) |
 | 1 | content errors: `check` failed, invalid frontmatter or markers in `reindex`, `unlock` with no lock |
-| 2 | usage error: bad arguments, missing folder, outside the root or deeper than level 3, unknown area, invalid `handoff.json`, no handoff yet |
+| 2 | usage error: bad arguments, missing folder, outside the root or deeper than level 3, unknown area, invalid `handoff.json` or language code, no handoff yet |
 | 3 | folder locked: valid lock of someone else, expired lock not broken, race lost; in `reindex`, your own lock expired |
 | 4 | lock owned by someone else (or missing, for `reindex`) |
 
@@ -189,8 +193,8 @@ $H check
 
 | event | with a handoff | without a handoff |
 |---|---|---|
-| `SessionStart` | reading protocol + tool command + every entry with rank <= `bootstrap_max_rank` and its summary (at most 60 listed) | one line suggesting `/claude-handoff:init` |
-| `UserPromptSubmit` | reminder: record changes in the same action, with the lock protocol | nothing |
+| `SessionStart` | reading protocol + tool command + content language + every entry with rank <= `bootstrap_max_rank` and its summary (at most 60 listed) | one line suggesting `/claude-handoff:init` |
+| `UserPromptSubmit` | reminder: record changes in the same action, with the lock protocol, in the content language | nothing |
 
 The hook always exits 0, prints ASCII-only JSON (`hookSpecificOutput.additionalContext`),
 tolerates malformed files and an invalid `handoff.json` (it falls back to the
@@ -209,7 +213,7 @@ defaults and says so), and runs on Python 3.7+. It finds the project through
 | `max_summary` | 160 | characters per summary |
 | `bootstrap_max_rank` | 1 | entries read at every session start (1-5) |
 | `lock_ttl_seconds` | 900 | default lock lifetime |
-| `language` | `"en"` | language of the injected hook text: `"en"` or `"it"` |
+| `language` | `"en"` | language the handoff content is written in (entries, titles, summaries, hand-written index text): a lowercase tag such as `"en"`, `"it"`, `"de"`, `"pt-br"`. The hook text is in that language when translated (English, Italian; `it-ch` uses Italian), in English otherwise. Set it with `/claude-handoff:language` |
 | `inject_summaries` | `true` | whether SessionStart lists the bootstrap entries |
 | `default_areas` | `["rules", "state", "decisions", "procedures", "open", "history"]` | areas created by `init` |
 | `legacy` | `null` | old handoff folder for `stats` to compare with, relative to the root |
@@ -228,7 +232,9 @@ the default `.claude/handoff`.
 - The hook asks Claude to read the bootstrap; it cannot force it. It injects the
   summaries, not the full rank-1 files.
 - The frontmatter is a strict subset of YAML: four keys, one-line values.
-- Hook text is available in English and Italian; tool messages are English.
+- The handoff content can be in any language, but the hook text is translated
+  only into English and Italian; tool messages are English. Changing the
+  language does not translate existing entries.
 - Token counts in `stats` are an estimate (bytes / 3.5).
 - The hook commands use `python3 ... || python ...` in shell form. On Windows
   without Git Bash, Claude Code runs hooks with PowerShell, where this fallback
@@ -251,7 +257,8 @@ folders: concurrent locks with threads and processes, concurrent stealing of an
 expired lock, `reindex` leaving hand-written text alone, one violation per
 `check` rule, configuration and root resolution, `init` idempotence, `reindex
 --all` holding one lock at a time, and the hook (no handoff, malformed files,
-ASCII JSON, Italian texts, internal errors).
+ASCII JSON, Italian texts, internal errors), and the `language` command
+(show, set preserving the other keys, invalid codes and files left untouched).
 
 ## License
 

@@ -78,7 +78,7 @@ Optional, at the root. Every key is optional; unknown keys are an error.
 | `max_summary` | int > 0 | 160 | characters per summary |
 | `bootstrap_max_rank` | 1-5 | 1 | entries read at every session start |
 | `lock_ttl_seconds` | int > 0 | 900 | default lock lifetime |
-| `language` | `en`, `it` | `en` | language of the text the hooks inject |
+| `language` | lowercase tag (`en`, `it`, `de`, `pt-br`) | `en` | language the content is written in (entries, titles, summaries, hand-written index text); also the hook text when translated (`en`, `it`; others get English, `it-ch` gets `it`). Set it with `handoff.py language <code>` |
 | `inject_summaries` | bool | true | SessionStart lists the bootstrap entries with summaries |
 | `default_areas` | list of names | rules, state, decisions, procedures, open, history | areas `init` creates |
 | `legacy` | path or null | null | old handoff for `stats` to compare with, relative to the root |

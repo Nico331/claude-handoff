@@ -1,7 +1,7 @@
 {
   "name": "claude-handoff",
   "displayName": "Claude Handoff",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Three-level, ranked, lock-protected project memory (\"handoff\") for Claude Code: a small bootstrap read at every session instead of one big notes file.",
   "author": {
     "name": "Nico331",
