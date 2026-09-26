@@ -193,7 +193,7 @@ $H check
 
 | event | with a handoff | without a handoff |
 |---|---|---|
-| `SessionStart` | reading protocol + tool command + content language + every entry with rank <= `bootstrap_max_rank` and its summary (at most 60 listed) | one line suggesting `/claude-handoff:init` |
+| `SessionStart` | reading protocol + tool command + content language + every entry with rank <= `bootstrap_max_rank` and its summary (at most 60 listed) + the cost of the bootstrap read against `bootstrap_budget_tokens`, with a warning when over | one line suggesting `/claude-handoff:init` |
 | `UserPromptSubmit` | reminder: record changes in the same action, with the lock protocol, in the content language | nothing |
 
 The hook always exits 0, prints ASCII-only JSON (`hookSpecificOutput.additionalContext`),
@@ -212,6 +212,7 @@ defaults and says so), and runs on Python 3.7+. It finds the project through
 | `max_entry_lines` | 80 | lines per entry |
 | `max_summary` | 160 | characters per summary |
 | `bootstrap_max_rank` | 1 | entries read at every session start (1-5) |
+| `bootstrap_budget_tokens` | 50000 | most estimated tokens (bytes / 3.5) the bootstrap read may cost: `check` fails, `stats` shows the share used, and the SessionStart hook warns when it is exceeded |
 | `lock_ttl_seconds` | 900 | default lock lifetime |
 | `language` | `"en"` | language the handoff content is written in (entries, titles, summaries, hand-written index text): a lowercase tag such as `"en"`, `"it"`, `"de"`, `"pt-br"`. The hook text is in that language when translated (English, Italian; `it-ch` uses Italian), in English otherwise. Set it with `/claude-handoff:language` |
 | `inject_summaries` | `true` | whether SessionStart lists the bootstrap entries |

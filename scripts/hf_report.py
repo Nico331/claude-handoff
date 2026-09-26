@@ -139,6 +139,30 @@ def compute_stats(root: Path, legacy: Path | None,
     return stats
 
 
+def bootstrap_cost(root: Path, cfg: Config = DEFAULT_CONFIG) -> Tally:
+    """Files, bytes and estimated tokens of the bootstrap read alone.
+
+    Root and area indexes plus every entry with rank <= `cfg.bootstrap_max_rank`;
+    entries with invalid frontmatter are skipped, as `list` skips them. Cheap enough
+    for the session hook: it reads only the files the bootstrap itself reads.
+    """
+    tally = Tally()
+    if not root.is_dir():
+        return tally
+    for path in sorted(root.rglob(INDEX_NAME)):
+        if len(path.parent.relative_to(root).parts) < 2:
+            tally.add(path)
+    entries, _ = list_entries(root, max_rank=cfg.bootstrap_max_rank, cfg=cfg)
+    for entry in entries:
+        tally.add(root / entry.path)
+    return tally
+
+
+def over_budget(tally: Tally, cfg: Config = DEFAULT_CONFIG) -> bool:
+    """True when the bootstrap read costs more than `cfg.bootstrap_budget_tokens`."""
+    return tally.tokens > cfg.bootstrap_budget_tokens
+
+
 def _percent(part: int, whole: int) -> str:
     """Percentage with one decimal, `-` when the whole is zero."""
     return f"{100 * part / whole:.1f}%" if whole else "-"
@@ -155,6 +179,10 @@ def format_stats(stats: Stats, legacy: Path | None,
     lines.append(f"bootstrap (root + area indexes + rank <= {cfg.bootstrap_max_rank}): "
                  f"{boot.files} files, {boot.size} bytes, ~{boot.tokens} tokens, "
                  f"{_percent(boot.size, total.size)} of the total")
+    budget = cfg.bootstrap_budget_tokens
+    lines.append(f"bootstrap budget: {budget} tokens; the bootstrap uses "
+                 f"{_percent(boot.tokens, budget)} of it"
+                 + (" (OVER BUDGET)" if boot.tokens > budget else ""))
     if stats.legacy_size is not None:
         legacy_tokens = round(stats.legacy_size / BYTES_PER_TOKEN)
         lines.append(f"legacy handoff ({legacy}): {stats.legacy_size} bytes, "

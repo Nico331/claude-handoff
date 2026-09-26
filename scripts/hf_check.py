@@ -14,6 +14,7 @@ from pathlib import Path
 from urllib.parse import unquote
 
 import hf_lock
+import hf_report
 from hf_config import CONFIG_NAME, DEFAULT_CONFIG, Config, config_problems
 from hf_index import Row, expected_folder_meta, parse_rows, render_row
 from hf_tree import (
@@ -60,6 +61,12 @@ def check(root: Path, now: datetime | None = None,
         if info.expired(now):
             errors.append(f"{folder / LOCK_NAME}: expired lock, "
                           f"{hf_lock.describe(info, now)}")
+    cost = hf_report.bootstrap_cost(root, cfg)
+    if hf_report.over_budget(cost, cfg):
+        errors.append(f"{root}: bootstrap read is ~{cost.tokens} tokens ({cost.files} files), "
+                      f"over the budget of {cfg.bootstrap_budget_tokens} "
+                      f"(bootstrap_budget_tokens); demote rank <= {cfg.bootstrap_max_rank} "
+                      "entries or shorten the indexes")
     return errors
 
 

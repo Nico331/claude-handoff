@@ -77,6 +77,8 @@ class Config:
         max_entry_lines: most lines in one entry.
         max_summary: most characters in a `summary`.
         bootstrap_max_rank: entries with rank <= this are read at every session start.
+        bootstrap_budget_tokens: most estimated tokens (bytes / 3.5) the bootstrap read
+            may cost; `check` fails and the SessionStart hook warns when exceeded.
         lock_ttl_seconds: default lifetime of a lock.
         language: language the handoff content is written in (entries, summaries,
             hand-written index text); also selects the hook text when a translation
@@ -91,6 +93,7 @@ class Config:
     max_entry_lines: int = 80
     max_summary: int = 160
     bootstrap_max_rank: int = 1
+    bootstrap_budget_tokens: int = 50000
     lock_ttl_seconds: int = 900
     language: str = DEFAULT_LANGUAGE
     inject_summaries: bool = True
@@ -102,7 +105,7 @@ DEFAULT_CONFIG = Config()
 """Configuration used when `handoff.json` is absent."""
 
 _POSITIVE_INTS = ("max_topics", "max_entry_files", "max_entry_lines", "max_summary",
-                  "lock_ttl_seconds")
+                  "bootstrap_budget_tokens", "lock_ttl_seconds")
 
 
 def _is_int(value: Any) -> bool:

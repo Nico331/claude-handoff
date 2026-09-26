@@ -4,6 +4,17 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.2.1] - 2026-09-26
+
+### Added
+
+- `bootstrap_budget_tokens` in `handoff.json` (default 50000): the most estimated
+  tokens (bytes / 3.5) the bootstrap read (root index, area indexes, entries with
+  rank <= `bootstrap_max_rank`) may cost. `check` fails when it is exceeded, `stats`
+  shows the share of the budget used, and the SessionStart hook reports the size
+  and, when over budget, tells the session to read selectively and to demote
+  entries until the bootstrap fits.
+
 ## [0.2.0] - 2026-09-24
 
 ### Added

@@ -61,6 +61,11 @@ TEXTS = {
         "none": "  (no entry with rank <= {rank} found)",
         "more": "  ... and {count} more: run `{tool} list --max-rank {rank}`",
         "unlisted": "List them with: {tool} list --max-rank {rank}",
+        "budget": ("Bootstrap read: ~{tokens} tokens ({files} files) of a {budget}-token "
+                   "budget (bootstrap_budget_tokens in handoff.json)."),
+        "over": ("OVER BUDGET: read the indexes and only the rank <= {rank} entries whose "
+                 "summary concerns today's task; in this session demote the least critical "
+                 "rank <= {rank} entries (lock protocol) until the bootstrap fits the budget."),
         "prompt": (
             "HANDOFF REMINDER: for this prompt and every action that follows, decide "
             "whether it changes a fact recorded in {root}/ or adds one a future session "
@@ -87,6 +92,12 @@ TEXTS = {
         "none": "  (nessuna voce con rank <= {rank} trovata)",
         "more": "  ... e altre {count}: `{tool} list --max-rank {rank}`",
         "unlisted": "Elenco: {tool} list --max-rank {rank}",
+        "budget": ("Lettura di avvio: ~{tokens} token ({files} file) su un budget di {budget} "
+                   "(bootstrap_budget_tokens in handoff.json)."),
+        "over": ("OLTRE IL BUDGET: leggere gli indici e solo le voci rank <= {rank} il cui "
+                 "sommario riguarda il compito di oggi; in questa sessione abbassare di rank le "
+                 "voci rank <= {rank} meno critiche (protocollo dei lock) finche' la lettura "
+                 "rientra nel budget."),
         "prompt": (
             "PROMEMORIA DELL'HANDOFF: per questo prompt e per ogni azione che ne segue, "
             "valutare se cambia un fatto scritto in {root}/ o ne aggiunge uno che una "
@@ -221,6 +232,15 @@ def build_message(event: str, project: Path, environ: Dict[str, str]) -> Optiona
             rank=rank, items="\n".join(items) or texts["none"].format(rank=rank)))
     else:
         parts.append(texts["unlisted"].format(tool=tool, rank=rank))
+    try:
+        import hf_report  # deferred, like hf_config: the budget line is optional
+        cost = hf_report.bootstrap_cost(root, cfg)
+        parts.append(texts["budget"].format(tokens=cost.tokens, files=cost.files,
+                                            budget=cfg.bootstrap_budget_tokens))
+        if hf_report.over_budget(cost, cfg):
+            parts.append(texts["over"].format(rank=rank))
+    except Exception:  # noqa: BLE001 - never let the budget line break the hook
+        pass
     return "\n".join(parts)
 
 
