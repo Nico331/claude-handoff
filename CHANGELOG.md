@@ -11,8 +11,9 @@ All notable changes to this project are documented here. The format follows
 - The tool and the hooks are a native binary written in Rust (`rust/`), shipped
   in `bin/` for Windows x64, Linux x86_64 and aarch64 and macOS (universal):
   Python is no longer needed. Same commands, options, messages, exit codes and
-  file formats as the Python tool, which stays in `scripts/` as the fallback for
-  other platforms and as the reference of `tests/test_parity.py`.
+  file formats as the Python tool, `bootstrap_budget_tokens` of 0.2.1 included;
+  the Python tool stays in `scripts/` as the fallback for other platforms and as
+  the reference of `tests/test_parity.py`.
 - The hooks run in exec form (`command` + `args`, no shell), so they also work on
   Windows without Git Bash. Without arguments the binary reads the event from
   the hook input.

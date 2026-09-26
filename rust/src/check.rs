@@ -8,6 +8,7 @@ use crate::errors::Result;
 use crate::index::{expected_folder_meta, parse_rows, render_row, Row};
 use crate::lock;
 use crate::py;
+use crate::report;
 use crate::timeutil;
 use crate::tree::{self, Child, INDEX_NAME, LOCK_LOG_NAME, LOCK_NAME};
 use regex::Regex;
@@ -56,6 +57,13 @@ pub fn check(root: &Path, now: Option<i64>, cfg: &Config) -> Result<Vec<String>>
             errors.push(format!("{}: expired lock, {}", py::show(&folder.join(LOCK_NAME)),
                                 lock::describe(&info, now)));
         }
+    }
+    let cost = report::bootstrap_cost(root, cfg)?;
+    if report::over_budget(&cost, cfg) {
+        errors.push(format!("{}: bootstrap read is ~{} tokens ({} files), over the budget of {} \
+                             (bootstrap_budget_tokens); demote rank <= {} entries or shorten the \
+                             indexes", py::show(root), cost.tokens(), cost.files,
+                            cfg.bootstrap_budget_tokens, cfg.bootstrap_max_rank));
     }
     Ok(errors)
 }

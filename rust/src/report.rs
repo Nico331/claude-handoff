@@ -121,10 +121,7 @@ pub fn compute_stats(root: &Path, legacy: Option<&Path>, cfg: &Config) -> Result
     }
     let (entries, _) = list_entries(root, Some(cfg.bootstrap_max_rank), None, cfg)?;
     for entry in entries {
-        let path: PathBuf = std::iter::once(root.as_os_str())
-            .chain(Path::new(&entry.path).iter())
-            .collect();
-        stats.bootstrap.add(&path)?;
+        stats.bootstrap.add(&entry_path(root, &entry))?;
     }
     if let Some(legacy) = legacy.filter(|l| l.is_dir()) {
         let files = py::rglob(legacy, |_| true);
@@ -132,6 +129,38 @@ pub fn compute_stats(root: &Path, legacy: Option<&Path>, cfg: &Config) -> Result
             .map(|p| fs::metadata(p).map(|m| m.len()).unwrap_or(0)).sum());
     }
     Ok(stats)
+}
+
+/// Files, bytes and estimated tokens of the bootstrap read alone: root and area
+/// indexes plus every entry with rank <= `cfg.bootstrap_max_rank`; entries with
+/// invalid frontmatter are skipped, as `list` skips them.
+pub fn bootstrap_cost(root: &Path, cfg: &Config) -> Result<Tally> {
+    let mut tally = Tally::default();
+    if !root.is_dir() {
+        return Ok(tally);
+    }
+    for path in py::rglob(root, |name| py::glob_eq(name, tree::INDEX_NAME)) {
+        let depth = path.parent().map_or(0, |p| p.strip_prefix(root).map_or(0, |r| r.components().count()));
+        if depth < 2 {
+            tally.add(&path)?;
+        }
+    }
+    let (entries, _) = list_entries(root, Some(cfg.bootstrap_max_rank), None, cfg)?;
+    for entry in entries {
+        tally.add(&entry_path(root, &entry))?;
+    }
+    Ok(tally)
+}
+
+/// True when the bootstrap read costs more than `cfg.bootstrap_budget_tokens`.
+pub fn over_budget(tally: &Tally, cfg: &Config) -> bool {
+    tally.tokens() > cfg.bootstrap_budget_tokens
+}
+
+/// Absolute path of an entry, built with the platform separator (the form the
+/// prefetched files are keyed by).
+fn entry_path(root: &Path, entry: &Entry) -> PathBuf {
+    std::iter::once(root.as_os_str()).chain(Path::new(&entry.path).iter()).collect()
 }
 
 /// Percentage with one decimal, `-` when the whole is zero.
@@ -150,6 +179,10 @@ pub fn format_stats(stats: &Stats, legacy: Option<&str>, cfg: &Config) -> Vec<St
     lines.push(format!("bootstrap (root + area indexes + rank <= {}): {} files, {} bytes, ~{} tokens, \
                         {} of the total", cfg.bootstrap_max_rank, boot.files, boot.size, boot.tokens(),
                        percent(boot.size, total.size)));
+    let budget = cfg.bootstrap_budget_tokens;
+    let over = if boot.tokens() > budget { " (OVER BUDGET)" } else { "" };
+    lines.push(format!("bootstrap budget: {budget} tokens; the bootstrap uses {} of it{over}",
+                       percent(boot.tokens(), budget)));
     if let Some(size) = stats.legacy_size {
         let tokens = (size as f64 / BYTES_PER_TOKEN).round() as u64;
         lines.push(format!("legacy handoff ({}): {size} bytes, ~{tokens} tokens; the bootstrap is {} of it",

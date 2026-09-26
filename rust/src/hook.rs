@@ -34,6 +34,8 @@ struct Texts {
     none: &'static str,
     more: &'static str,
     unlisted: &'static str,
+    budget: &'static str,
+    over: &'static str,
     prompt: &'static str,
     absent: &'static str,
 }
@@ -51,6 +53,11 @@ const EN: Texts = Texts {
     none: "  (no entry with rank <= {rank} found)",
     more: "  ... and {count} more: run `{tool} list --max-rank {rank}`",
     unlisted: "List them with: {tool} list --max-rank {rank}",
+    budget: "Bootstrap read: ~{tokens} tokens ({files} files) of a {budget}-token \
+        budget (bootstrap_budget_tokens in handoff.json).",
+    over: "OVER BUDGET: read the indexes and only the rank <= {rank} entries whose \
+        summary concerns today's task; in this session demote the least critical \
+        rank <= {rank} entries (lock protocol) until the bootstrap fits the budget.",
     prompt: "HANDOFF REMINDER: for this prompt and every action that follows, decide \
         whether it changes a fact recorded in {root}/ or adds one a future session \
         needs. If so, update it in the same action, never at the end, with the lock \
@@ -75,6 +82,12 @@ const IT: Texts = Texts {
     none: "  (nessuna voce con rank <= {rank} trovata)",
     more: "  ... e altre {count}: `{tool} list --max-rank {rank}`",
     unlisted: "Elenco: {tool} list --max-rank {rank}",
+    budget: "Lettura di avvio: ~{tokens} token ({files} file) su un budget di {budget} \
+        (bootstrap_budget_tokens in handoff.json).",
+    over: "OLTRE IL BUDGET: leggere gli indici e solo le voci rank <= {rank} il cui \
+        sommario riguarda il compito di oggi; in questa sessione abbassare di rank le \
+        voci rank <= {rank} meno critiche (protocollo dei lock) finche' la lettura \
+        rientra nel budget.",
     prompt: "PROMEMORIA DELL'HANDOFF: per questo prompt e per ogni azione che ne segue, \
         valutare se cambia un fatto scritto in {root}/ o ne aggiunge uno che una \
         sessione futura deve sapere. Se si', aggiornarlo nella stessa azione, mai in \
@@ -164,10 +177,11 @@ fn bootstrap_entries(root: &Path, max_rank: u64) -> Vec<(String, String)> {
             }));
         }
     }
-    let contents = py::read_parallel(&candidates);
+    crate::tree::prefetch(&candidates);
     let mut found: Vec<(u64, String, String)> = Vec::new();
     for path in &candidates {
-        let fields = read_frontmatter(contents.get(path));
+        let bytes = crate::tree::read_bytes(path).ok();
+        let fields = read_frontmatter(bytes.as_ref());
         let get = |key: &str| fields.iter().find(|(k, _)| k == key).map(|(_, v)| v.clone());
         let rank_text = get("rank").unwrap_or_default();
         if rank_text.is_empty() || !rank_text.bytes().all(|b| b.is_ascii_digit()) {
@@ -247,6 +261,15 @@ fn build_message(event: &str, project: &Path) -> Option<String> {
         parts.push(fill(texts.listed, &[("rank", &rank), ("items", &listing)]));
     } else {
         parts.push(fill(texts.unlisted, &[("tool", &tool), ("rank", &rank)]));
+    }
+    // The budget line is optional: a failure here never breaks the hook.
+    if let Ok(cost) = crate::report::bootstrap_cost(&root, &cfg) {
+        let (tokens, files) = (cost.tokens().to_string(), cost.files.to_string());
+        let budget = cfg.bootstrap_budget_tokens.to_string();
+        parts.push(fill(texts.budget, &[("tokens", &tokens), ("files", &files), ("budget", &budget)]));
+        if crate::report::over_budget(&cost, &cfg) {
+            parts.push(fill(texts.over, &[("rank", &rank)]));
+        }
     }
     Some(parts.join("\n"))
 }

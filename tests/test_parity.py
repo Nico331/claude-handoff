@@ -252,6 +252,13 @@ SCENARIOS: dict[str, Callable[[Path], None]] = {
                                                    '"max_entry_lines": 5, "max_summary": 10}')),
     "config-bootstrap-2": mutate(_write("handoff.json", '{"bootstrap_max_rank": 2, '
                                                         '"language": "it-ch"}')),
+    "config-budget-over": mutate(_write("handoff.json", '{"bootstrap_budget_tokens": 10, '
+                                                        '"language": "it"}')),
+    "config-budget-edge": mutate(_write("handoff.json", '{"bootstrap_budget_tokens": 1180, '
+                                                        '"bootstrap_max_rank": 3}')),
+    "config-budget-invalid": mutate(_write("handoff.json", '{"bootstrap_budget_tokens": 0}')),
+    "config-budget-no-summaries": mutate(_write("handoff.json", '{"bootstrap_budget_tokens": 1, '
+                                                                '"inject_summaries": false}')),
     "config-no-summaries": mutate(_write("handoff.json", '{"inject_summaries": false, '
                                                          '"language": "de"}')),
     "config-legacy": mutate(_many(_write("handoff.json", '{"legacy": "../archive"}'),

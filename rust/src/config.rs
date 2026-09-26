@@ -29,13 +29,13 @@ pub const DEFAULT_AREAS: [&str; 6] = ["rules", "state", "decisions", "procedures
 pub const DEFAULT_LANGUAGE: &str = "en";
 
 /// Keys of `handoff.json`, in the order `init` writes them.
-const FIELDS: [&str; 10] = ["max_topics", "max_entry_files", "max_entry_lines", "max_summary",
-    "bootstrap_max_rank", "lock_ttl_seconds", "language", "inject_summaries", "default_areas",
+const FIELDS: [&str; 11] = ["max_topics", "max_entry_files", "max_entry_lines", "max_summary",
+    "bootstrap_max_rank", "bootstrap_budget_tokens", "lock_ttl_seconds", "language", "inject_summaries", "default_areas",
     "legacy"];
 
 /// Keys that must hold an integer > 0.
-const POSITIVE_INTS: [&str; 5] =
-    ["max_topics", "max_entry_files", "max_entry_lines", "max_summary", "lock_ttl_seconds"];
+const POSITIVE_INTS: [&str; 6] = ["max_topics", "max_entry_files", "max_entry_lines", "max_summary",
+    "bootstrap_budget_tokens", "lock_ttl_seconds"];
 
 /// Validated configuration of one handoff.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -50,6 +50,9 @@ pub struct Config {
     pub max_summary: u64,
     /// Entries with rank <= this are read at every session start.
     pub bootstrap_max_rank: u64,
+    /// Most estimated tokens (bytes / 3.5) the bootstrap read may cost; `check` fails
+    /// and the SessionStart hook warns when it is exceeded.
+    pub bootstrap_budget_tokens: u64,
     /// Default lifetime of a lock.
     pub lock_ttl_seconds: u64,
     /// Language the handoff content is written in; also selects the hook text.
@@ -70,6 +73,7 @@ impl Default for Config {
             max_entry_lines: 80,
             max_summary: 160,
             bootstrap_max_rank: 1,
+            bootstrap_budget_tokens: 50_000,
             lock_ttl_seconds: 900,
             language: DEFAULT_LANGUAGE.into(),
             inject_summaries: true,
@@ -123,6 +127,7 @@ pub fn validate(data: &Value) -> std::result::Result<Config, Vec<String>> {
                     "max_entry_files" => config.max_entry_files = number,
                     "max_entry_lines" => config.max_entry_lines = number,
                     "max_summary" => config.max_summary = number,
+                    "bootstrap_budget_tokens" => config.bootstrap_budget_tokens = number,
                     _ => config.lock_ttl_seconds = number,
                 },
                 None => problems.push(format!("{key} must be a positive integer")),
@@ -209,6 +214,7 @@ pub fn config_json(config: &Config) -> String {
     map.insert("max_entry_lines".into(), config.max_entry_lines.into());
     map.insert("max_summary".into(), config.max_summary.into());
     map.insert("bootstrap_max_rank".into(), config.bootstrap_max_rank.into());
+    map.insert("bootstrap_budget_tokens".into(), config.bootstrap_budget_tokens.into());
     map.insert("lock_ttl_seconds".into(), config.lock_ttl_seconds.into());
     map.insert("language".into(), config.language.clone().into());
     map.insert("inject_summaries".into(), config.inject_summaries.into());
@@ -278,6 +284,7 @@ mod tests {
         let text = config_json(&Config::default());
         assert!(text.starts_with("{\n  \"max_topics\": 20,\n  \"max_entry_files\": 51,"));
         assert!(text.ends_with("  \"legacy\": null\n}\n"));
+        assert!(text.contains("\"bootstrap_max_rank\": 1,\n  \"bootstrap_budget_tokens\": 50000,"));
         assert!(text.contains("\"default_areas\": [\n    \"rules\",\n"));
     }
 }
