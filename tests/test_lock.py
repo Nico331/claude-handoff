@@ -185,3 +185,4 @@ def test_two_thieves_of_an_expired_lock_one_wins(tmp_path: Path) -> None:
     assert len(log) == 1 and record["actor"].startswith("L")
     assert record["previous"]["owner"] == "M1"
     assert not list(folder.glob(".lock.stale-*"))
+    assert not (folder / hf_lock.STEAL_NAME).exists()

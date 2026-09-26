@@ -5,12 +5,12 @@ argument-hint: "[--warn-only]"
 
 Validate the claude-handoff project memory.
 
-1. Run from the project directory (`python` on Windows if `python3` is missing):
+1. Run from the project directory:
 
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/handoff.py" check $ARGUMENTS
-   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/handoff.py" status
-   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/handoff.py" stats
+   "${CLAUDE_PLUGIN_ROOT}/bin/handoff" check $ARGUMENTS
+   "${CLAUDE_PLUGIN_ROOT}/bin/handoff" status
+   "${CLAUDE_PLUGIN_ROOT}/bin/handoff" stats
    ```
 
 2. If `check` prints `structure valid`, report that together with the bootstrap

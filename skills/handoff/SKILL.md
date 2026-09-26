@@ -18,14 +18,15 @@ A handoff is the project memory a fresh session needs and cannot deduce from the
 code: rules, decisions, current state, procedures, open items. It is **state, not
 a diary**: facts are updated in place.
 
-Tool (Python 3.10+, standard library only), run from the project directory:
+Tool (a native binary shipped with the plugin, nothing to install), run from the
+project directory:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/handoff.py" <command>    # `python` on Windows
+handoff <command>    # on the PATH of the Bash tool; or "${CLAUDE_PLUGIN_ROOT}/bin/handoff"
 ```
 
-Below, `handoff.py` stands for that command line. The session-start hook also
-prints the exact command for this machine. The root is `.claude/handoff/` unless
+Below, `handoff` stands for that command line. The session-start hook also
+prints the exact command for this machine (in PowerShell, run it with `&`). The root is `.claude/handoff/` unless
 `--root`, `CLAUDE_HANDOFF_ROOT` or `.claude/handoff.json` (`{"root": "..."}`) say
 otherwise.
 
@@ -76,7 +77,7 @@ the fixed cost of every session: keep it short. Examples and edge cases are in
 
 1. `<root>/INDEX.md`;
 2. the `INDEX.md` of every area;
-3. every rank-1 entry (`handoff.py list --max-rank 1`; the session-start hook
+3. every rank-1 entry (`handoff list --max-rank 1`; the session-start hook
    already lists them with their summaries, but read the files, not only the
    summaries, when a summary is not enough to act safely);
 4. for today's task: the rank <= 2 entries of the topics it touches, then the
@@ -93,13 +94,13 @@ written in the handoff, or add one a future session must know? If so, update it
 **Protocol** (one lock at a time, bottom-up), e.g. for `state/cluster/access.md`:
 
 ```bash
-handoff.py lock    state/cluster --owner agent-1
+handoff lock    state/cluster --owner agent-1
 #   edit state/cluster/access.md; set `updated:` to today; adjust rank/summary
-handoff.py reindex state/cluster --owner agent-1
-handoff.py unlock  state/cluster --owner agent-1
-handoff.py lock    state --owner agent-1 && handoff.py reindex state --owner agent-1 && handoff.py unlock state --owner agent-1
-handoff.py lock    . --owner agent-1     && handoff.py reindex . --owner agent-1     && handoff.py unlock . --owner agent-1
-handoff.py check
+handoff reindex state/cluster --owner agent-1
+handoff unlock  state/cluster --owner agent-1
+handoff lock    state --owner agent-1 && handoff reindex state --owner agent-1 && handoff unlock state --owner agent-1
+handoff lock    . --owner agent-1     && handoff reindex . --owner agent-1     && handoff unlock . --owner agent-1
+handoff check
 ```
 
 - Only edit a file while holding the lock of **its** folder.
@@ -116,7 +117,7 @@ handoff.py check
 
 - **Write in the handoff's language**: entries, titles, summaries and the
   hand-written text of indexes use the `language` of `<root>/handoff.json`
-  (default `en`; `handoff.py language` prints it, and the hooks repeat it), even
+  (default `en`; `handoff language` prints it, and the hooks repeat it), even
   when the conversation is in another language. File and folder names stay
   kebab-case ASCII. When the language changes, existing entries are translated
   only if the user asks, with the lock protocol.
@@ -127,7 +128,7 @@ handoff.py check
   entry. A struck-through line still costs every reader.
 - New topic: create `<area>/<topic>/INDEX.md` with frontmatter and a line of
   purpose, add the entries, then `reindex` topic, area, root. New area: prefer
-  `handoff.py init --areas <existing>,<new>` (idempotent).
+  `handoff init --areas <existing>,<new>` (idempotent).
 - An entry over 80 lines is two topics: split it and link them.
 
 ## Commands

@@ -9,7 +9,7 @@ Migrate the existing project notes at `$ARGUMENTS` into a three-level handoff.
 Read and follow `${CLAUDE_PLUGIN_ROOT}/skills/handoff/reference/migration.md`
 step by step; the format rules are in
 `${CLAUDE_PLUGIN_ROOT}/skills/handoff/reference/format.md`. The tool is
-`python3 "${CLAUDE_PLUGIN_ROOT}/scripts/handoff.py"` (`python` on Windows).
+`"${CLAUDE_PLUGIN_ROOT}/bin/handoff"` (or `handoff`, on the PATH of the Bash tool).
 
 In short, you are the **coordinator**:
 

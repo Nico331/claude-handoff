@@ -6,8 +6,8 @@ one whose bootstrap is 41.6 KB (31%), with the same 20/20 accuracy on a
 coordinator (you) plans, delegates, measures and fixes; it does not copy text
 itself.
 
-Throughout, `handoff.py` means
-`python3 "${CLAUDE_PLUGIN_ROOT}/scripts/handoff.py"` (`python` on Windows).
+Throughout, `handoff` means
+`"${CLAUDE_PLUGIN_ROOT}/bin/handoff"` (also on the PATH of the Bash tool).
 
 ## 0. Ground rules
 
@@ -29,7 +29,7 @@ Throughout, `handoff.py` means
    **disjoint**: every source section belongs to exactly one area, so two agents
    never write the same fact. Note cross-area facts explicitly ("the deploy
    command lives in `procedures/deploy`; `state` links to it").
-4. Scaffold: `handoff.py --root <new> init --areas <a,b,c>` (add `--no-seed` if
+4. Scaffold: `handoff --root <new> init --areas <a,b,c>` (add `--no-seed` if
    the project already has its own rules about the handoff).
 
 ## 2. One agent per area, in parallel
@@ -54,14 +54,14 @@ Launch one sub-agent per area at the same time. Each prompt includes:
 
 1. Write the hand-written part of the root `INDEX.md`: purpose, reading order,
    rank legend, write protocol (the `init` template is a good start).
-2. `handoff.py --root <new> reindex --all --owner coordinator` and
-   `handoff.py --root <new> check` until it prints `structure valid`.
-3. **Deduplicate rank 1**: `handoff.py --root <new> list --max-rank 1`. The same
+2. `handoff --root <new> reindex --all --owner coordinator` and
+   `handoff --root <new> check` until it prints `structure valid`.
+3. **Deduplicate rank 1**: `handoff --root <new> list --max-rank 1`. The same
    rule at rank 1 in several areas is a duplicate: keep one, demote the others to
    2 and link. Do this **one lock at a time** (in the reference migration the
    coordinator held seven sibling locks at once to save time; it could not
    deadlock, but it broke the rule, so don't).
-4. `handoff.py --root <new> stats --legacy <old>`: note the bootstrap bytes and
+4. `handoff --root <new> stats --legacy <old>`: note the bootstrap bytes and
    the percentage of the old source.
 
 ## 4. Evaluate

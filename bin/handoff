@@ -1,0 +1,40 @@
+#!/bin/sh
+# Runs the handoff tool built for this machine (claude-handoff plugin).
+#
+# Claude Code puts this folder on the PATH of its Bash tool, so `handoff <command>`
+# works in any Bash call, and the hooks run this file directly. On Windows the hooks
+# start handoff.exe next to it instead, and Git Bash runs this file, which hands over
+# to handoff.exe. A platform without a binary falls back to the Python tool.
+
+here=$(dirname "$0")
+binary=
+case "$(uname -s)" in
+    Linux)
+        case "$(uname -m)" in
+            x86_64 | amd64) binary="$here/linux-x86_64/handoff" ;;
+            aarch64 | arm64) binary="$here/linux-aarch64/handoff" ;;
+        esac ;;
+    Darwin) binary="$here/darwin/handoff" ;;
+    MINGW* | MSYS* | CYGWIN*) binary="$here/handoff.exe" ;;
+esac
+
+if [ -n "$binary" ] && [ -x "$binary" ]; then
+    exec "$binary" "$@"
+fi
+
+scripts="$here/../scripts"
+for python in python3 python; do
+    if command -v "$python" >/dev/null 2>&1; then
+        if [ "$1" = "hook" ]; then
+            shift
+            exec "$python" "$scripts/hook.py" "${1:-prompt}"
+        fi
+        exec "$python" "$scripts/handoff.py" "$@"
+    fi
+done
+
+if [ "$1" = "hook" ]; then
+    exit 0 # a hook must never break a session
+fi
+echo "handoff: no binary for $(uname -s) $(uname -m) and no Python to fall back to" >&2
+exit 2

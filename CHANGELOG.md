@@ -4,6 +4,33 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.3.0] - 2026-09-26
+
+### Changed
+
+- The tool and the hooks are a native binary written in Rust (`rust/`), shipped
+  in `bin/` for Windows x64, Linux x86_64 and aarch64 and macOS (universal):
+  Python is no longer needed. Same commands, options, messages, exit codes and
+  file formats as the Python tool, which stays in `scripts/` as the fallback for
+  other platforms and as the reference of `tests/test_parity.py`.
+- The hooks run in exec form (`command` + `args`, no shell), so they also work on
+  Windows without Git Bash. Without arguments the binary reads the event from
+  the hook input.
+- Commands, skill and docs call `handoff` (on the PATH of the Bash tool) or
+  `${CLAUDE_PLUGIN_ROOT}/bin/handoff`.
+
+### Fixed
+
+- `lock --steal-stale`: several processes stealing the same expired lock could
+  all believe they held it (about one round in five with 8 processes on Linux),
+  and some crashed with `FileNotFoundError`. Thieves now queue on
+  `<folder>/.lock.steal`; the lock is removed only if it is still the expired
+  one. Fixed in both the Rust and the Python tool; `check` accepts the guard
+  file.
+
+### Added
+
+- `tests/test_parity.py` (Python vs Rust on the same trees) and `tests/bench.py`.
 ## [0.2.1] - 2026-09-26
 
 ### Added

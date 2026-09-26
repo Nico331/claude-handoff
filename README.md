@@ -82,9 +82,12 @@ lives in one place. Never secrets.
 ```
 
 Then run `/reload-plugins` (or restart Claude Code) if the install summary asks
-for it. Requirements: Python 3.10+ on `PATH` as `python3` or `python`, standard
-library only. On Windows, hooks run through Git Bash (Claude Code's default when
-it is installed).
+for it. Nothing else to install: the plugin ships a native `handoff` binary for
+Windows x64 (also run by Windows on Arm), Linux x86_64 and aarch64 (static, any
+distribution) and macOS (Intel and Apple Silicon). The hooks start it directly,
+without a shell, so they work in Git Bash, PowerShell or no shell at all. On any
+other platform `bin/handoff` falls back to the Python version in `scripts/`
+(Python 3.10+, standard library only).
 
 To try it without installing: `claude --plugin-dir /path/to/claude-handoff`.
 
@@ -99,7 +102,7 @@ In your project:
 This creates `.claude/handoff/` with the default areas (`rules`, `state`,
 `decisions`, `procedures`, `open`, `history`), a `handoff.json`, and a seed topic
 `rules/handoff/` explaining the protocol. The handoff is written in English by
-default; for another language pass it at creation (`handoff.py init --language
+default; for another language pass it at creation (`handoff init --language
 it`) or set it later with `/claude-handoff:language it`. Then just work: at every session start
 the hook injects the reading protocol and the rank-1 summaries, and at every
 prompt it reminds Claude to record what changed. The `handoff` skill holds the
@@ -109,7 +112,7 @@ Add the lock files to your `.gitignore`:
 
 ```gitignore
 .claude/handoff/**/.lock
-.claude/handoff/**/.lock.stale-*
+.claude/handoff/**/.lock.steal
 ```
 
 `.lock-log` (the record of stolen and forced locks) can be committed or ignored,
@@ -129,10 +132,11 @@ Slash commands (namespaced by the plugin):
 | `/claude-handoff:language [code]` | show or set the language the handoff is written in; existing entries are translated only on request |
 | `/claude-handoff:handoff` | the skill itself (also loaded automatically) |
 
-The tool behind them, usable directly (`python` instead of `python3` on Windows):
+The tool behind them, usable directly: `handoff` is on the PATH of Claude's Bash
+tool while the plugin is enabled, otherwise run `<plugin>/bin/handoff`.
 
 ```
-python3 <plugin>/scripts/handoff.py [--root DIR] <command> [options]
+handoff [--root DIR] <command> [options]
 ```
 
 The session-start hook prints the exact command line for your machine.
@@ -169,7 +173,7 @@ owner, pid, host, time and lifetime (default 15 minutes). To change
 `state/cluster/access.md`:
 
 ```bash
-H="python3 <plugin>/scripts/handoff.py"
+H=handoff    # or <plugin>/bin/handoff
 $H lock    state/cluster --owner agent-1
 #   edit state/cluster/access.md (update its frontmatter)
 $H reindex state/cluster --owner agent-1
@@ -185,7 +189,9 @@ $H check
 - Exit code 3 means someone else is writing: wait and retry.
 - An expired lock never disappears by itself. Break it only with
   `--steal-stale`; the act goes to `<root>/.lock-log` with the previous owner.
-  Two agents stealing the same lock at once: exactly one wins.
+  Thieves queue on `<folder>/.lock.steal`, created the same way, so of two
+  agents stealing the same lock at once exactly one wins, and the lock is
+  removed only if it is still the expired one.
 - `reindex --all` performs the whole upward walk with one lock at a time and
   releases each lock even when a step fails.
 
@@ -198,8 +204,12 @@ $H check
 
 The hook always exits 0, prints ASCII-only JSON (`hookSpecificOutput.additionalContext`),
 tolerates malformed files and an invalid `handoff.json` (it falls back to the
-defaults and says so), and runs on Python 3.7+. It finds the project through
-`CLAUDE_PROJECT_DIR`, or the `cwd` of the hook input.
+defaults and says so). It finds the project through `CLAUDE_PROJECT_DIR`, or the
+`cwd` of the hook input. The hooks are declared in exec form (`command` plus
+`args`): Windows starts `bin/handoff.exe`, macOS and Linux run `bin/handoff`, a
+`sh` launcher that picks the binary for the machine. Run without arguments, the
+binary reads the event from the hook input, so a Claude Code that ignores `args`
+still gets the right text.
 
 ## Configuration
 
@@ -237,9 +247,10 @@ the default `.claude/handoff`.
   only into English and Italian; tool messages are English. Changing the
   language does not translate existing entries.
 - Token counts in `stats` are an estimate (bytes / 3.5).
-- The hook commands use `python3 ... || python ...` in shell form. On Windows
-  without Git Bash, Claude Code runs hooks with PowerShell, where this fallback
-  chain does not parse in Windows PowerShell 5.1.
+- The plugin carries the binaries of every platform (about 6 MB); each machine
+  runs one. Other platforms need Python 3.10+ for the fallback.
+- A lock can still be lost if the owner of an *expired* lock releases it in the
+  very instant a thief is breaking it: expiry means the owner is presumed dead.
 - With the plugin enabled for your user, every project without a handoff gets
   the one-line `init` hint at session start. Disable the plugin per project if
   you do not want it.
@@ -249,9 +260,20 @@ the default `.claude/handoff`.
 ## Development
 
 ```
-python -m pytest            # tests/, needs pytest; the plugin itself needs no dependency
+python -m pytest            # Python suite in tests/, needs pytest
+cd rust && cargo test      # Rust unit tests
 claude plugin validate .
 ```
+
+The binaries in `bin/` are built from `rust/` with `cargo zigbuild` for
+`x86_64-pc-windows-gnu`, `x86_64-unknown-linux-musl`, `aarch64-unknown-linux-musl`
+and `universal2-apple-darwin` (see `.github/workflows/build.yml`; locally, the
+`ghcr.io/rust-cross/cargo-zigbuild` image has everything). The Rust tool must
+behave exactly like the Python one: `HANDOFF_BIN=<binary> python -m pytest
+tests/test_parity.py` runs both on the same trees (every `check` rule, locks,
+reindex, init, language, hook, usage errors and random trees) and compares exit
+codes, output and the files left on disk. `python tests/bench.py <binary>`
+compares their speed.
 
 `tests/` covers every command and error path on trees built in temporary
 folders: concurrent locks with threads and processes, concurrent stealing of an

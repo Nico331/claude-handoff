@@ -7,11 +7,10 @@ disable-model-invocation: true
 Show or change the language of the claude-handoff project memory: the language
 entries, summaries and hand-written index text are written in.
 
-1. Run, from the project directory (use `python` instead of `python3` on Windows
-   if `python3` is not available):
+1. Run, from the project directory:
 
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/handoff.py" language $ARGUMENTS
+   "${CLAUDE_PLUGIN_ROOT}/bin/handoff" language $ARGUMENTS
    ```
 
    The user's arguments were: "$ARGUMENTS". Without arguments the command prints

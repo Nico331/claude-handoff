@@ -76,7 +76,7 @@ def _check_folder(root: Path, folder: Path, errors: list[str], cfg: Config) -> N
     entries = sorted(folder.iterdir())
     dirs = [p for p in entries if p.is_dir()]
     files = [p for p in entries if p.is_file()]
-    allowed = {LOCK_NAME, INDEX_NAME}
+    allowed = {LOCK_NAME, hf_lock.STEAL_NAME, INDEX_NAME}
     if level == 1:
         allowed |= {LOCK_LOG_NAME, CONFIG_NAME}
     index = folder / INDEX_NAME

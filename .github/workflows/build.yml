@@ -1,0 +1,101 @@
+# Builds the handoff binaries, checks them against the Python tool on the three
+# operating systems, and on a version tag commits them into bin/ on main.
+name: build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  binaries:
+    runs-on: ubuntu-latest
+    container: ghcr.io/rust-cross/cargo-zigbuild:latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Unit tests
+        run: cargo test --release --manifest-path rust/Cargo.toml
+      - name: Cross-compile
+        run: |
+          rustup target add x86_64-pc-windows-gnu x86_64-unknown-linux-musl \
+            aarch64-unknown-linux-musl x86_64-apple-darwin aarch64-apple-darwin
+          for target in x86_64-pc-windows-gnu x86_64-unknown-linux-musl \
+                        aarch64-unknown-linux-musl universal2-apple-darwin; do
+            cargo zigbuild --release --manifest-path rust/Cargo.toml --target "$target"
+          done
+          mkdir -p out/linux-x86_64 out/linux-aarch64 out/darwin
+          cp rust/target/x86_64-pc-windows-gnu/release/handoff.exe out/handoff.exe
+          cp rust/target/x86_64-unknown-linux-musl/release/handoff out/linux-x86_64/handoff
+          cp rust/target/aarch64-unknown-linux-musl/release/handoff out/linux-aarch64/handoff
+          cp rust/target/universal2-apple-darwin/release/handoff out/darwin/handoff
+      - uses: actions/upload-artifact@v4
+        with:
+          name: binaries
+          path: out/
+
+  parity:
+    needs: binaries
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            binary: out/linux-x86_64/handoff
+          - os: ubuntu-24.04-arm
+            binary: out/linux-aarch64/handoff
+          - os: macos-latest
+            binary: out/darwin/handoff
+          - os: windows-latest
+            binary: out/handoff.exe
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: binaries
+          path: out/
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: chmod +x out/handoff.exe out/*/handoff
+      - run: pip install pytest
+      - name: Python suite and parity with the Rust binary
+        run: python -m pytest tests -q
+        env:
+          HANDOFF_BIN: ${{ matrix.binary }}
+          HANDOFF_FUZZ: "300"
+      - name: Speed
+        run: python tests/bench.py "${{ matrix.binary }}" 5
+
+  publish:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: parity
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/download-artifact@v4
+        with:
+          name: binaries
+          path: out/
+      - name: Commit the binaries into bin/
+        run: |
+          cp out/handoff.exe bin/handoff.exe
+          for dir in linux-x86_64 linux-aarch64 darwin; do
+            mkdir -p "bin/$dir" && cp "out/$dir/handoff" "bin/$dir/handoff"
+          done
+          chmod +x bin/handoff bin/*/handoff
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add bin
+          git update-index --chmod=+x bin/handoff bin/*/handoff
+          git diff --cached --quiet || git commit -m "Update the binaries for ${GITHUB_REF_NAME}"
+          git push origin main

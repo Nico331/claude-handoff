@@ -5,7 +5,8 @@ A lock is the file ``<folder>/.lock``, created with ``O_CREAT|O_EXCL`` (atomic o
 POSIX file systems and on NTFS), holding owner, pid, host, acquisition time and
 lifetime. An expired lock does not vanish by itself: it is broken only with
 ``--steal-stale``, and the act is appended to ``<root>/.lock-log``, like every
-forced release.
+forced release. Thieves queue on ``<folder>/.lock.steal``, created the same way, so two
+of them can never both break a lock and both believe they hold it.
 """
 
 from __future__ import annotations
@@ -13,7 +14,6 @@ from __future__ import annotations
 import json
 import os
 import socket
-import uuid
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -29,6 +29,12 @@ BUSY = 3
 
 NOT_OWNER = 4
 """Exit code: the caller is not the owner of the lock."""
+
+STEAL_NAME = ".lock.steal"
+"""Guard a thief holds while breaking an expired lock."""
+
+STEAL_GRACE = 60
+"""Age in seconds after which a steal guard is considered abandoned."""
 
 
 @dataclass(frozen=True)
@@ -87,7 +93,10 @@ def read_lock(path: Path) -> LockInfo | None:
             raise ValueError("naive timestamp")
         return info
     except (ValueError, KeyError, TypeError):
-        mtime = datetime.fromtimestamp(path.stat().st_mtime, timezone.utc)
+        try:
+            mtime = datetime.fromtimestamp(path.stat().st_mtime, timezone.utc)
+        except FileNotFoundError:
+            return None  # released while being read
         return LockInfo("?", 0, "?", mtime.replace(microsecond=0).isoformat(), DEFAULT_TTL)
 
 
@@ -169,60 +178,69 @@ def _contend(root: Path, folder: Path, path: Path, info: LockInfo, steal_stale: 
     if not steal_stale:
         raise HandoffError(f"{folder}: expired lock of {describe(current, now)}; "
                            "use --steal-stale to break it", BUSY)
-    if not _remove_if_unchanged(path, current):
-        raise HandoffError(f"{folder}: the expired lock changed, retry", BUSY)
-    append_log(root, "steal-stale", folder, info.owner, current, now)
+    guard = folder / STEAL_NAME  # thieves queue here: only its holder breaks the lock
+    if not _create_exclusive_text(guard, str(os.getpid())):
+        _clear_abandoned_guard(guard, now)
+        raise HandoffError(f"{folder}: another process is breaking the expired lock, retry",
+                           BUSY)
+    try:
+        return _steal(root, folder, path, info, current, now)
+    finally:
+        try:
+            guard.unlink()
+        except OSError:
+            pass  # an abandoned guard is cleared by the next thief after STEAL_GRACE
+
+
+def _steal(root: Path, folder: Path, path: Path, info: LockInfo, expected: LockInfo,
+           now: datetime) -> LockInfo:
+    """Break the expired lock `expected` and take the folder, holding the steal guard.
+
+    The lock is removed only if it is still `expected`: a lock released meanwhile is
+    simply taken, a lock replaced meanwhile is left alone.
+    """
+    present = read_lock(path)
+    if present is not None:
+        if present != expected:
+            raise HandoffError(f"{folder}: the expired lock changed, retry", BUSY)
+        try:
+            path.unlink()
+        except FileNotFoundError:
+            pass
+        append_log(root, "steal-stale", folder, info.owner, expected, now)
     if _create_exclusive(path, info):
         return info
     raise HandoffError(f"{folder}: lock taken by another process after the steal", BUSY)
 
 
-def _create_exclusive(path: Path, info: LockInfo) -> bool:
-    """Create the lock file only if it does not exist; True on success."""
+def _create_exclusive_text(path: Path, text: str) -> bool:
+    """Create `path` holding `text` only if it does not exist; True on success."""
     try:
         fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
     except FileExistsError:
         return False
     with os.fdopen(fd, "w", encoding="utf-8") as handle:
-        json.dump(asdict(info), handle, ensure_ascii=False)
+        handle.write(text)
     return True
 
 
-def _remove_if_unchanged(path: Path, expected: LockInfo) -> bool:
-    """Remove the lock only if it is still the expected one.
+def _create_exclusive(path: Path, info: LockInfo) -> bool:
+    """Create the lock file only if it does not exist; True on success."""
+    return _create_exclusive_text(path, json.dumps(asdict(info), ensure_ascii=False))
 
-    The lock is renamed to a unique name and its content compared; if the moved file
-    is not the expected one (someone broke and re-took it meanwhile) it is linked
-    back. On Windows a rename works on handles and two thieves can both "succeed":
-    the deletion decides, and it succeeds for one only. The new lock is still
-    assigned by `O_EXCL`, not by this function.
 
-    Returns:
-        True when the expected lock was removed.
+def _clear_abandoned_guard(guard: Path, now: datetime) -> None:
+    """Remove a steal guard left by a thief that died inside the steal.
+
+    A live thief holds the guard for a few milliseconds; one older than `STEAL_GRACE`
+    seconds belongs to a process that died, and would block every steal.
     """
-    aside = path.with_name(f"{LOCK_NAME}.stale-{uuid.uuid4().hex}")
     try:
-        os.rename(path, aside)
-    except (FileNotFoundError, PermissionError):  # another thief was first
-        return False
-    moved = read_lock(aside)
-    if moved is None:  # Windows: a concurrent thief already moved it elsewhere
-        return False
-    if moved == expected:
-        try:  # deletion is the referee: it succeeds for one thief only
-            aside.unlink()
-        except (FileNotFoundError, PermissionError):
-            return False
-        return True
-    try:  # link, not rename: on POSIX a rename would overwrite a fresh lock
-        os.link(aside, path)
-    except OSError:
-        pass  # a new lock is already there, or the file moved again
-    try:
-        aside.unlink()
-    except FileNotFoundError:
-        pass  # removed by a concurrent thief; nothing left to clean
-    return False
+        modified = datetime.fromtimestamp(guard.stat().st_mtime, timezone.utc)
+        if (now - modified).total_seconds() > STEAL_GRACE:
+            guard.unlink()
+    except (FileNotFoundError, PermissionError):
+        pass
 
 
 def release(root: Path, folder: Path, owner: str, force: bool = False,

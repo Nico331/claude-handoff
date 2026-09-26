@@ -1,0 +1,23 @@
+[package]
+name = "handoff"
+version = "0.3.0"
+edition = "2021"
+description = "Command-line tool and session hook of the claude-handoff plugin"
+license = "MIT"
+repository = "https://github.com/Nico331/claude-handoff"
+publish = false
+
+[dependencies]
+regex = { version = "1", default-features = false, features = ["std", "unicode-perl"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_System_SystemInformation"] }
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true

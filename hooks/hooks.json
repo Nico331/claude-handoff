@@ -5,7 +5,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/hook.py\" session-start 2>/dev/null || python \"${CLAUDE_PLUGIN_ROOT}/scripts/hook.py\" session-start",
+            "command": "${CLAUDE_PLUGIN_ROOT}/bin/handoff",
+            "args": ["hook", "session-start"],
             "timeout": 10,
             "statusMessage": "Loading handoff"
           }
@@ -17,7 +18,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/hook.py\" prompt 2>/dev/null || python \"${CLAUDE_PLUGIN_ROOT}/scripts/hook.py\" prompt",
+            "command": "${CLAUDE_PLUGIN_ROOT}/bin/handoff",
+            "args": ["hook", "prompt"],
             "timeout": 10
           }
         ]

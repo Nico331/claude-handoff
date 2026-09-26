@@ -6,11 +6,10 @@ disable-model-invocation: true
 
 Set up the claude-handoff project memory in the current project.
 
-1. Run, from the project directory (use `python` instead of `python3` on Windows
-   if `python3` is not available):
+1. Run, from the project directory:
 
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/handoff.py" init --owner init
+   "${CLAUDE_PLUGIN_ROOT}/bin/handoff" init --owner init
    ```
 
    The user's arguments were: "$ARGUMENTS". If they name areas, append
@@ -19,7 +18,7 @@ Set up the claude-handoff project memory in the current project.
    or `default_areas` of an existing `handoff.json`). Area names must be
    kebab-case. If they name a language for the handoff ("in Italian", `it`),
    append `--language <lowercase tag>`; otherwise the handoff is in English.
-2. Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/handoff.py" check`; it must print
+2. Run `"${CLAUDE_PLUGIN_ROOT}/bin/handoff" check`; it must print
    `structure valid`.
 3. Tell the user, briefly: where the root is, which areas exist, that
    `handoff.json` holds the limits and the language the handoff is written in
